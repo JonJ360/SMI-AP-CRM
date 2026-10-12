@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from decimal import Decimal
 from ap import signed_cents
+import check_runs
 ROOT=Path(__file__).resolve().parent
 PRIVATE=Path(os.environ.get('LOCALAPPDATA',str(Path.home()))) / 'hermes' / 'ap-crm'
 QUERIES={
@@ -45,7 +46,7 @@ def main():
  sys.path.insert(0,str(ROOT.parent/'financial-statements'/'scripts'))
  import financial_sync as fs
  PRIVATE.mkdir(parents=True,exist_ok=True)
- start=datetime.now(timezone.utc).isoformat(); result=dict(source='GP SELECT-only snapshot',asof=start,rows=[],companies={},scope='Posted nonvoid PM20000 open balances only; work/history/apply excluded; functional-currency amounts. No payments executed.')
+ start=datetime.now(timezone.utc).isoformat(); result=dict(source='GP SELECT-only snapshot',asof=start,rows=[],companies={},scope='Posted nonvoid PM20000 open balances; separate posted payment history in company check_runs metadata; work excluded; functional-currency amounts. No payments executed.')
  for code in ('SMI','SFAB'):
   co=next(c for c in fs.ACTIVE_COMPANIES if c.code==code)
   conn=fs.connect_company(co)
@@ -58,14 +59,15 @@ def main():
    balances=fetch(cur,QUERIES['vendor_balances']); reconciliation=vendor_control(rows,balances)
    currency=fetch(cur,QUERIES['functional_currency'])
    if len(currency)!=1 or currency[0]['currency'] not in ('USD','Z-US$','US$'): raise ValueError('USD functional currency not verified')
+   history=check_runs.extract(cur,code,fetch);check_runs.validate_history(history)
    if balances!=fetch(cur,QUERIES['vendor_balances']): raise ValueError('Vendor balances moved during read')
    if raw!=fetch(cur,QUERIES['open']) or control!=fetch(cur,QUERIES['control']):raise ValueError('Source moved during extraction; no promotion')
    result['rows']+=rows
-   result['companies'][code]=dict(name=co.name,functional_currency=currency[0]['currency'],vendor_reconciliation=reconciliation,count=len(rows),work_excluded_count=work,control=control,permissions=permissions,authority=authority,stable_reread=True,extracted_at=datetime.now(timezone.utc).isoformat(),raw_sha256=hashlib.sha256(json.dumps(raw,default=str,sort_keys=True).encode()).hexdigest())
+   result['companies'][code]=dict(name=co.name,check_runs=history,functional_currency=currency[0]['currency'],vendor_reconciliation=reconciliation,count=len(rows),work_excluded_count=work,control=control,permissions=permissions,authority=authority,stable_reread=True,extracted_at=datetime.now(timezone.utc).isoformat(),raw_sha256=hashlib.sha256(json.dumps(raw,default=str,sort_keys=True).encode()).hexdigest())
    (PRIVATE/f'checkpoint-{code}.json').write_text(json.dumps({'raw':raw,'control':control},default=str),encoding='utf-8')
   finally:conn.close()
  result['completed_at']=datetime.now(timezone.utc).isoformat()
- result['query_sha256']=hashlib.sha256(json.dumps(QUERIES,sort_keys=True).encode()).hexdigest()
+ result['query_sha256']=hashlib.sha256(json.dumps({'open_ap':QUERIES,'check_runs':check_runs.QUERIES},sort_keys=True).encode()).hexdigest()
  temp=PRIVATE/'snapshot.tmp'; temp.write_text(json.dumps(result,default=str),encoding='utf-8'); temp.replace(PRIVATE/'snapshot.json')
  print(json.dumps({'status':'verified','path':str(PRIVATE/'snapshot.json'),'companies':{k:{'rows':v['count'],'work_excluded':v['work_excluded_count']} for k,v in result['companies'].items()}}))
 if __name__=='__main__':

@@ -2,12 +2,12 @@ param([switch]$Install,[switch]$RefreshGuard)
 $ErrorActionPreference='Stop'
 $repo='C:\Users\jonj\OneDrive\360\360 Solutions\Clients\360 Solutions LLC\A.I\GitHub\SMI-AP-CRM'
 $private='C:\Users\jonj\AppData\Local\hermes\ap-crm'
-$python='C:\Users\jonj\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe'
+$python='C:\Users\jonj\AppData\Local\hermes\hermes-agent\venv\Scripts\pythonw.exe'
 $name='Hermes_APCRM_GP_Refresh'
 if($Install -or $RefreshGuard){
  if($Install -and (Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue)){throw 'Task already exists; review before replacement'}
  $files=@{}
- @("$repo\ap_refresh.py","$repo\scheduled_refresh.py","$repo\gp_extract.py","$repo\ap.py","$repo\..\financial-statements\scripts\financial_sync.py","$repo\..\SMI-AR-CRM\scripts\arcrm_ledger_auth.py") | ForEach-Object {$p=(Resolve-Path $_).Path;$files[$p]=(Get-FileHash $p -Algorithm SHA256).Hash.ToLower()}
+ @("$repo\ap_refresh.py","$repo\scheduled_refresh.py","$repo\gp_extract.py","$repo\check_runs.py","$repo\ap.py","$repo\..\financial-statements\scripts\financial_sync.py","$repo\..\SMI-AR-CRM\scripts\arcrm_ledger_auth.py") | ForEach-Object {$p=(Resolve-Path $_).Path;$files[$p]=(Get-FileHash $p -Algorithm SHA256).Hash.ToLower()}
  @{entrypoint="$repo\ap_refresh.py";files=$files} | ConvertTo-Json -Depth 5 | Set-Content -Encoding ASCII "$private\deployment.json"
 }
 if($Install){

@@ -23,10 +23,10 @@ def create_server(data_dir=PRIVATE,port=8876):
   def do_GET(self):
    if not self.safe_host():return self.respond(403,{'error':'Loopback Host required'})
    u=urlsplit(self.path)
-   if u.path in ('/','/app.js','/style.css'):
-    file={'/':'index.html','/app.js':'app.js','/style.css':'style.css'}[u.path]
+   if u.path in ('/','/app.js','/style.css','/check-runs.js'):
+    file={'/':'index.html','/app.js':'app.js','/style.css':'style.css','/check-runs.js':'check-runs.js'}[u.path]
     if not (ROOT/file).exists():return self.respond(404,{'error':'Asset missing'})
-    return self.respond(200,(ROOT/file).read_bytes(),{'/':'text/html','/app.js':'text/javascript','/style.css':'text/css'}[u.path])
+    return self.respond(200,(ROOT/file).read_bytes(),{'/':'text/html','/app.js':'text/javascript','/style.css':'text/css','/check-runs.js':'text/javascript'}[u.path])
    if u.path=='/api/state':
     try:
      company=parse_qs(u.query).get('company',['SMI'])[0];today=datetime.now().astimezone().date().isoformat()
