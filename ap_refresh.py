@@ -64,7 +64,12 @@ class Backend:
   self._token=asyncio.run(token())
  def query(self,q):
   import requests
-  r=requests.post(f'https://api.supabase.com/v1/projects/{PROJECT}/database/query',headers={'Authorization':'Bearer '+self._token},json={'query':q},timeout=70)
+  for attempt in range(2):
+   r=requests.post(f'https://api.supabase.com/v1/projects/{PROJECT}/database/query',headers={'Authorization':'Bearer '+self._token},json={'query':q},timeout=70)
+   if r.status_code!=401 or attempt:break
+   # Reacquire through the same fenced provider; never bypass authorization.
+   # Retry only an explicit auth denial, never ambiguous publication failures.
+   self.__init__()
   if r.status_code not in (200,201): raise RuntimeError('AP backend HTTP '+str(r.status_code))
   result=r.json()
   if not isinstance(result,list): raise RuntimeError('AP backend response')
@@ -103,16 +108,19 @@ def run():
   temp=PRIVATE/'latest-receipt.tmp';temp.write_text(json.dumps(receipt,indent=2));temp.replace(PRIVATE/'latest-receipt.json')
  save()
  try:
-  backend=Backend()
-  receipt['backup']=backup(backend,folder);save()
+  receipt['phase']='backend_init';save();backend=Backend()
+  receipt['phase']='backup';save();receipt['backup']=backup(backend,folder);save()
+  receipt['phase']='extract';save()
   gp_extract.PRIVATE=folder
   with contextlib.redirect_stdout(io.StringIO()):gp_extract.main()
   s=json.loads((folder/'snapshot.json').read_text());validate(s)
   receipt['source_asof']=s['asof'];receipt['counts']={c:v['count'] for c,v in s['companies'].items()}
   receipt['check_runs']={c:{'groups':len(v['check_runs']['runs']),**v['check_runs']['reconciliation']} for c,v in s['companies'].items()}
   receipt['extraction_seconds']=round(time.monotonic()-started,3);save()
+  receipt['phase']='publish';save()
   result=backend.query(PUBLISH_SQL.format(payload=publish_expression(s)))[0]['receipt']
   expected={c:{**s,'rows':[r for r in s['rows'] if r['company']==c],'companies':{c:s['companies'][c]}} for c in ('SMI','SFAB')}
+  receipt['phase']='readback';save()
   served=backend.query("select company,payload,updated_at from public.ap_snapshot order by company")
   check=[dict(company=r['company'],source_asof=r['payload']['asof'],documents=len(r['payload']['rows']),query_sha256=r['payload']['query_sha256'],updated_at=r['updated_at'],exact_payload_matches=r['payload']==expected.get(r['company'])) for r in served]
   if {r['company'] for r in check}!={'SMI','SFAB'} or any(not r['exact_payload_matches'] or r['source_asof']!=s['asof'] or r['documents']!=s['companies'][r['company']]['count'] or r['query_sha256']!=s['query_sha256'] for r in check):raise ValueError('Readback mismatch')
@@ -120,6 +128,9 @@ def run():
   receipt.update(status='verified',publish=result,readback=check)
   code=0
  except Exception as e:
+  # Only fixed local diagnostic codes; never raw backend response/credentials.
+  message=str(e)
+  if message=='Profile mismatch' or (message.startswith('AP backend HTTP ') and message[16:].isdigit()):receipt['error_code']=message
   receipt.update(status='blocked',error_type=type(e).__name__,note='No raw exception/credentials logged. Prior snapshots retained; check AP-only source/backend access.')
   code=1
  finally:
