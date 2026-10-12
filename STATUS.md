@@ -1,4 +1,12 @@
 # AP publication
+
+## Current scoped release — 2026-10-12
+- User explicitly confirmed successful existing-session sign-in: “I checked, I'm in, it works.” This closes the outstanding signed-in access gap as **user-confirmed**, not a new automated authenticated-session test.
+- Palette corrected from the actual deployed/canonical AR Collections source: blue-to-teal header, sand background/borders, warm text, teal active navigation, matching blue information and red hold/past-due states. AP geometry, typography, auth, accounting, backend and guarded refresh code unchanged.
+- Headless Edge synthetic-fixture visual regression compares computed colors to AR and checks unchanged geometry at 1440, 768, 390 and 320px. Before/after screenshots are explicitly fixtures, not production data or an authenticated session.
+- Current five-minute refresh operation supersedes historical manual-only statements below; see operations/REFRESH.md. Deployment proof and precise commit are in private AP-Publication-Evidence/palette/release.json after release verification.
+
+## Historical initial publication (superseded where noted above)
 Production URL: https://jonj360.github.io/SMI-AP-CRM/
 Published separate static shell with Jon-only database RPC access. Real SMI 776/SFAB 107 document manual snapshot uploaded. No GP writes, payment execution, scheduler, AR/RS changes, or Storage buckets.
 Live anonymous table and RPC requests denied 401. Tables owner-only ACL + forced RLS/no policies; both RPCs check exact verified Jon Auth UID. Seven regression tests and isolated PostgreSQL security/authorization tests pass. Login page renders with no data or JS errors. Actual signed-in Jon end-to-end verification remains pending. Source refresh is MANUAL.
