@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.env
+*.sqlite3
+snapshot.json
+node_modules/
+site/
