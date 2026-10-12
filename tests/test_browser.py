@@ -16,7 +16,7 @@ class Browser(unittest.TestCase):
     with sync_playwright() as p:
      b=p.chromium.launch(channel='msedge',headless=True);page=b.new_page(viewport={'width':1440,'height':1000}); errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
      page.goto(f'http://127.0.0.1:{s.server_port}');page.get_by_role('button',name='Vendors',exact=True).click();page.get_by_role('button',name='TEST FIXTURE Vendor — NOT REAL',exact=True).click()
-     page.get_by_role('button',name='TEST-A',exact=True).click();page.get_by_label('Planning note').fill('Verify freight — TEST ONLY');page.get_by_role('button',name='Save note').click();page.get_by_text('Note saved locally',exact=True).wait_for();page.get_by_role('button',name='Close invoice').click()
+     page.get_by_role('button',name='TEST-A',exact=True).click();page.get_by_label('Planning note').fill('Verify freight — TEST ONLY');page.get_by_role('button',name='Save note').click();page.locator('#save-status').get_by_text('Note saved',exact=True).wait_for();page.get_by_role('button',name='Close invoice').click()
      page.get_by_label('Select TEST-A').check();page.get_by_text('$123.45',exact=True).first.wait_for();page.reload();page.get_by_role('button',name='Payment plan',exact=True).click();self.assertTrue(page.get_by_label('Select TEST-A').is_checked())
      page.get_by_role('button',name='TEST-A',exact=True).click();self.assertEqual(page.get_by_label('Planning note').input_value(),'Verify freight — TEST ONLY');self.assertEqual(page.locator('dialog img').count(),0)
      page.get_by_label('Local planning hold').check();page.get_by_role('button',name='Close invoice').click();page.get_by_text('No matching documents',exact=True).wait_for()

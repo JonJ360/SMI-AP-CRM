@@ -1,4 +1,10 @@
-# AP local vertical slice checkpoint
+# AP publication
+Production URL: https://jonj360.github.io/SMI-AP-CRM/
+Published separate static shell with Jon-only database RPC access. Real SMI 776/SFAB 107 document manual snapshot uploaded. No GP writes, payment execution, scheduler, AR/RS changes, or Storage buckets.
+Live anonymous table and RPC requests denied 401. Tables owner-only ACL + forced RLS/no policies; both RPCs check exact verified Jon Auth UID. Seven regression tests and isolated PostgreSQL security/authorization tests pass. Login page renders with no data or JS errors. Actual signed-in Jon end-to-end verification remains pending. Source refresh is MANUAL.
+Private release evidence: C:/Users/jonj/OneDrive/Hermes/Documents/AP-Publication-Evidence/.
+
+## Historical local vertical slice checkpoint
 Started 2026-10-12 12:30 Central (tool clock).
 Scope: separate SMI/SFAB AP; AR unchanged; no production deployments/schema/auth/schedulers; GP SELECT only; no payment execution.
 Canonical reference: sibling SMI-AR-CRM/index.html (ocean header, sidebar, KPI cards, tables, drawer). New blue/white app, independent state.
