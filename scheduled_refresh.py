@@ -6,7 +6,25 @@ PRIVATE=Path(os.environ['LOCALAPPDATA'])/'hermes/ap-crm'
 def verify(manifest):
  for path,want in manifest['files'].items():
   if hashlib.sha256(Path(path).read_bytes()).hexdigest()!=want: raise ValueError('Reviewed source hash changed')
+def configure_windowless_subprocesses():
+ """Keep console children of this scheduled worker off the user's desktop.
+
+ pythonw hides only itself. Imports in the auth/client stack can still launch
+ git or cmd.exe; apply this process-local default before importing that stack.
+ No shared library, other task, command arguments or security guard is changed.
+ """
+ if sys.platform != 'win32':return
+ import subprocess
+ if getattr(subprocess.Popen,'_ap_windowless',False):return
+ class WindowlessPopen(subprocess.Popen):
+  _ap_windowless=True
+  def __init__(self,*args,**kwargs):
+   kwargs['creationflags']=kwargs.get('creationflags',0)|subprocess.CREATE_NO_WINDOW
+   super().__init__(*args,**kwargs)
+ subprocess.Popen=WindowlessPopen
+
 def main():
+ configure_windowless_subprocesses()
  try:
   manifest=json.loads((PRIVATE/'deployment.json').read_text());verify(manifest)
  except Exception as e:

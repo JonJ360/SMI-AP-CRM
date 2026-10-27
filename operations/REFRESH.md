@@ -2,6 +2,8 @@
 
 Task `Hermes_APCRM_GP_Refresh` runs `scheduled_refresh.py` every five minutes as Jon, Interactive/Limited, IgnoreNew, maximum four minutes. This is deterministic Python, not a Hermes/LLM cron task. Requires workstation online, Jon logged in, GP LAN and existing renewable Supabase management authorization. Check Runs adds bounded retained posting-group history; measured full guarded history runs are approximately one minute. The task uses the same virtual environment’s windowless pythonw.exe to avoid an interactive console and console-close termination. No AR/RS scheduler or data changes.
 
+The scheduled entrypoint also installs a process-local `CREATE_NO_WINDOW` default on Windows subprocesses **before** importing the refresh/auth stack. `pythonw.exe` alone does not hide console children such as `git rev-parse HEAD` or `cmd.exe /c ver`. This policy changes no shared dependency or other task; child command arguments, output capture, working directory and existing creation flags are preserved. Regression coverage: `tests/test_windowless_refresh.py`. Do not remove the child policy merely because the task already uses pythonw.
+
 ## Safety and ownership
 
 - Reviewed `gp_extract.py` performs only fixed SELECTs against SMI/SFAB; object/server permission guards, document amount/count controls, PM00201 vendor reconciliation, USD functional currency and stable double reads must pass. Zero/partial/capped/moved source fails closed.
