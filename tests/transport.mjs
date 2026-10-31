@@ -6,7 +6,7 @@ from tests.test_history_validation import fixture
 h=fixture();h['payments'][0]['description']="O'Brien \\u2603 \\\"quote\\\""
 source={'source':'GP SELECT-only snapshot','companies':{'SMI':{'check_runs':h},'SFAB':{'check_runs':fixture('SFAB')}},'rows':[]}
 app={'target_document':'TEST','amount_cents':100,'description':None}
-source['companies']['SMI']['check_runs']['payments'][0]['applications']=[app,dict(app,amount_cents=200)]
+source['companies']['SMI']['check_runs']['payments'][0]['applications']=[dict(app,amount_cents=(100 if i%2 else 0),description=(None if i%3 else "O'Brien \\u2603"),nested=[None,False,0,'x']) for i in range(100)]
 print(json.dumps({'source':source,'expression':a.publish_expression(source)}))`;
 const input=JSON.parse(execFileSync(python,['-c',code],{encoding:'utf8'}));
 const db=new PGlite();const got=(await db.query('select '+input.expression+' as v')).rows[0].v;assert.deepEqual(got,input.source);

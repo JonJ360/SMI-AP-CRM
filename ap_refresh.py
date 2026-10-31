@@ -26,9 +26,21 @@ def literal(v):
 def pack_records(rows):
  keys=list(rows[0]) if rows else []
  if any(set(r)!=set(keys) for r in rows):raise ValueError('Transport record shape')
- return {'keys':keys,'rows':[[r[k] for k in keys] for r in rows]}
+ values=[[r[k] for k in keys] for r in rows]; dictionaries={}
+ # Column dictionaries are wire-only and selected only when smaller. Values
+ # include their JSON types, so null, zero, false and nested arrays stay exact.
+ for col,key in enumerate(keys):
+  unique=[];lookup={};indexes=[]
+  for row in values:
+   value=row[col];token=json.dumps(value,sort_keys=True,separators=(',',':'))
+   if token not in lookup:lookup[token]=len(unique);unique.append(value)
+   indexes.append(lookup[token])
+  if len(json.dumps(unique))+len(json.dumps(indexes)) < len(json.dumps([r[col] for r in values])):
+   dictionaries[key]=unique
+   for row,index in zip(values,indexes):row[col]=index
+ return {'keys':keys,'rows':values,'dictionaries':dictionaries}
 def unpack_records(p):
- return [dict(zip(p['keys'],r)) for r in p['rows']]
+ return [{k:p.get('dictionaries',{}).get(k,[])[v] if k in p.get('dictionaries',{}) else v for k,v in zip(p['keys'],r)} for r in p['rows']]
 def publish_expression(s):
  # Positional wire encoding only: PostgreSQL reconstructs the exact original
  # JSON before the existing atomic publisher. No schema or privilege changes.
@@ -36,16 +48,19 @@ def publish_expression(s):
  for co,v in s['companies'].items():
   h=v['check_runs'];payments=[{k:x for k,x in p.items() if k!='applications'} for p in h['payments']]
   apps=[p['applications'] for p in h['payments']];flat=[a for aa in apps for a in aa]
-  app_keys=list(flat[0]) if flat else []
-  if any(set(a)!=set(app_keys) for a in flat):raise ValueError('Application wire shape')
-  wire={'meta':{k:x for k,x in h.items() if k not in ('runs','payments')},'runs':pack_records(h['runs']),'payments':pack_records(payments),'app_keys':app_keys,'apps':[[[a[k] for k in app_keys] for a in aa] for aa in apps]}
+  app_pack=pack_records(flat);offset=0;app_rows=[]
+  for aa in apps:
+   app_rows.append(app_pack['rows'][offset:offset+len(aa)]);offset+=len(aa)
+  wire={'meta':{k:x for k,x in h.items() if k not in ('runs','payments')},'runs':pack_records(h['runs']),'payments':pack_records(payments),'app_keys':app_pack['keys'],'app_dictionaries':app_pack['dictionaries'],'apps':app_rows}
   packed['companies'][co]={**v,'check_runs':wire}
- def record(keys,row):
-  return "coalesce((select jsonb_object_agg(k.value #>> '{}',"+row+"->(k.ordinality-1)::int) from jsonb_array_elements("+keys+") with ordinality k(value,ordinality)),'{}'::jsonb)"
- runs="coalesce((select jsonb_agg("+record("h->'runs'->'keys'","r.value")+" order by r.ordinality) from jsonb_array_elements(h->'runs'->'rows') with ordinality r(value,ordinality)),'[]'::jsonb)"
- apps="coalesce((select jsonb_agg("+record("h->'app_keys'","a.value")+" order by a.ordinality) from jsonb_array_elements(h->'apps'->(p.ordinality-1)::int) with ordinality a(value,ordinality)),'[]'::jsonb)"
- payments="coalesce((select jsonb_agg(("+record("h->'payments'->'keys'","p.value")+" || jsonb_build_object('applications',"+apps+")) order by p.ordinality) from jsonb_array_elements(h->'payments'->'rows') with ordinality p(value,ordinality)),'[]'::jsonb)"
- return "(with wire as (select "+literal(packed)+"::jsonb j), companies as (select c.key,c.value,c.value->'check_runs' h from wire,jsonb_each(j->'companies') c) select jsonb_set(j,'{companies}',(select jsonb_object_agg(key,jsonb_set(value,'{check_runs}',(h->'meta') || jsonb_build_object('runs',"+runs+",'payments',"+payments+"))) from companies)) from wire)"
+ def record(keys,row,dictionaries):
+  cell=row+"->(k.ordinality-1)::int";key="k.value #>> '{}'"
+  value="case when ("+dictionaries+") ? ("+key+") then ("+dictionaries+")->("+key+")->(("+cell+") #>> '{}')::int else "+cell+" end"
+  return "coalesce((select jsonb_object_agg("+key+","+value+") from jsonb_array_elements("+keys+") with ordinality k(value,ordinality)),'{}'::jsonb)"
+ runs="coalesce((select jsonb_agg("+record("h->'runs'->'keys'","r.value","h->'runs'->'dictionaries'")+" order by r.ordinality) from jsonb_array_elements(h->'runs'->'rows') with ordinality r(value,ordinality)),'[]'::jsonb)"
+ apps="coalesce((select jsonb_agg("+record("h->'app_keys'","a.value","h->'app_dictionaries'")+" order by a.ordinality) from jsonb_array_elements(h->'apps'->(p.ordinality-1)::int) with ordinality a(value,ordinality)),'[]'::jsonb)"
+ payments="coalesce((select jsonb_agg(("+record("h->'payments'->'keys'","p.value","h->'payments'->'dictionaries'")+" || jsonb_build_object('applications',"+apps+")) order by p.ordinality) from jsonb_array_elements(h->'payments'->'rows') with ordinality p(value,ordinality)),'[]'::jsonb)"
+ return "(with wire as materialized (select "+literal(packed)+"::jsonb j), companies as materialized (select c.key,c.value,c.value->'check_runs' h from wire,jsonb_each(j->'companies') c) select jsonb_set(j,'{companies}',(select jsonb_object_agg(key,jsonb_set(value,'{check_runs}',(h->'meta') || jsonb_build_object('runs',"+runs+",'payments',"+payments+"))) from companies)) from wire)"
 class Backend:
  def __init__(self):
   h=Path.home()/'AppData/Local/hermes'
